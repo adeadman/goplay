@@ -13,3 +13,6 @@ test:
 
 run:	build
 	bin/goplay
+
+clean:
+	rm -rf bin coverage.txt
