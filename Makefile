@@ -1,8 +1,7 @@
 build:
-	go build -o bin/goplay main.go
+	go build -o bin/goplay ./...
 
 setup: 
-	go get ./...
 	go get github.com/stretchr/testify/assert
 
 fmt:
