@@ -64,6 +64,12 @@ func play(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "OK")
 }
 
+func stop(w http.ResponseWriter, r *http.Request) {
+	sendCommand("STOP")
+	drainStdout()
+	fmt.Fprintf(w, "OK")
+}
+
 func pause(w http.ResponseWriter, r *http.Request) {
 	drainStdout()
 	sendCommand("PAUSE")
@@ -161,6 +167,7 @@ func main() {
 	log.Println(fmt.Sprintf(">>> Listening on %s", cfg.GetServerAddr()))
 	http.HandleFunc("/", player)
 	http.HandleFunc("/play", play)
+	http.HandleFunc("/stop", stop)
 	http.HandleFunc("/pause", pause)
 	http.HandleFunc("/status", status)
 	http.HandleFunc("/playbackInfo", getPlaybackInfo)
