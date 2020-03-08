@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	log "github.com/sirupsen/logrus"
+	"html/template"
 	"io"
 	"net/http"
 	"os/exec"
@@ -11,7 +13,6 @@ import (
 	"time"
 )
 
-//var mpg123StdoutBuf, mpg123StderrBuf bytes.Buffer
 var mpg123 *exec.Cmd
 var mpg123Stdin io.WriteCloser
 var mpg123Stdout io.ReadCloser
@@ -23,7 +24,12 @@ func player(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "404 not found", http.StatusNotFound)
 		return
 	}
-	fmt.Fprintf(w, "Player will be loaded here")
+	t, err := template.ParseFiles("templates/index.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	t.Execute(w, nil)
 }
 
 func play(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +40,34 @@ func play(w http.ResponseWriter, r *http.Request) {
 func pause(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(mpg123Stdin, "PAUSE\n")
 	fmt.Fprintf(w, "OK")
+}
+
+func getPlaybackInfo(w http.ResponseWriter, r *http.Request) {
+	// get the most recent frame info
+	var recentStatusLine string
+	for {
+		select {
+		case line := <-mpg123StdoutChan:
+			if strings.HasPrefix(line, "@F ") {
+				recentStatusLine = line
+			}
+			time.Sleep(1 * time.Millisecond)
+			continue
+		default:
+		}
+		break
+	}
+	playbackInfo, err := getPlaybackInfoFromFrameLine(recentStatusLine)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	playbackInfoJson, err := json.Marshal(playbackInfo)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprintln(w, string(playbackInfoJson))
 }
 
 func status(w http.ResponseWriter, r *http.Request) {
@@ -118,5 +152,6 @@ func main() {
 	http.HandleFunc("/play", play)
 	http.HandleFunc("/pause", pause)
 	http.HandleFunc("/status", status)
+	http.HandleFunc("/playbackInfo", getPlaybackInfo)
 	log.Fatal(http.ListenAndServe(cfg.GetServerAddr(), nil))
 }
