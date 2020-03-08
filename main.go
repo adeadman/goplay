@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"os/exec"
+	"strings"
+	"time"
 )
 
 //var mpg123StdoutBuf, mpg123StderrBuf bytes.Buffer
@@ -13,6 +16,7 @@ var mpg123 *exec.Cmd
 var mpg123Stdin io.WriteCloser
 var mpg123Stdout io.ReadCloser
 var mpg123Stderr io.ReadCloser
+var mpg123StdoutChan chan string
 
 func player(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path[1:] != "" {
@@ -30,6 +34,50 @@ func play(w http.ResponseWriter, r *http.Request) {
 func pause(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(mpg123Stdin, "PAUSE\n")
 	fmt.Fprintf(w, "OK")
+}
+
+func status(w http.ResponseWriter, r *http.Request) {
+	// drain the stdout channel to remove any unread stdout lines
+	for {
+		select {
+		case _ = <-mpg123StdoutChan:
+			// we sleep for a ms to allow concurrent goroutines to write
+			time.Sleep(1 * time.Millisecond)
+			continue
+		default:
+		}
+		break
+	}
+	io.WriteString(mpg123Stdin, "STATE\n")
+
+	// allow time for the application to read the input and respond
+	time.Sleep(30 * time.Millisecond)
+
+	// collect all available output as above
+	for {
+		select {
+		case line := <-mpg123StdoutChan:
+			if strings.HasPrefix(line, "@STATE") {
+				fmt.Fprintf(w, "%s\n", line)
+			}
+			time.Sleep(1 * time.Millisecond)
+			continue
+		default:
+		}
+		break
+	}
+	fmt.Fprintf(w, "OK")
+}
+
+func readFromPipe(pipe io.ReadCloser, channel chan string) {
+	bufioReader := bufio.NewReader(pipe)
+	for {
+		output, _, err := bufioReader.ReadLine()
+		if err != nil || err == io.EOF {
+			break
+		}
+		channel <- string(output)
+	}
 }
 
 func main() {
@@ -57,6 +105,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+	mpg123StdoutChan = make(chan string)
+	go readFromPipe(mpg123Stdout, mpg123StdoutChan)
+
 	err = mpg123.Start()
 	if err != nil {
 		log.Fatalf("mpg123 failed to start with '%s'\n", err)
@@ -66,5 +117,6 @@ func main() {
 	http.HandleFunc("/", player)
 	http.HandleFunc("/play", play)
 	http.HandleFunc("/pause", pause)
+	http.HandleFunc("/status", status)
 	log.Fatal(http.ListenAndServe(cfg.GetServerAddr(), nil))
 }
