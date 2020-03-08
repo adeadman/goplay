@@ -1,14 +1,23 @@
-<h1>Goplay</h1>
-<p>Hello Goplay</p>
+<h1>Music Player</h1>
 <div id="app">
 </div>
+<button type="button" disabled>&#x23ee;</button>
+<button type="button" onClick="playPause();">&#x23ef;</button>
+<button type="button" disabled>&#x23f9;</button>
+<button type="button" disabled>&#x23ed;</button>
 
-<div id="legacyforms">
-  <form action="/play" method="get" id="play">
-    <input type="submit" value="Start Playing">
-  </form>
-
-  <form action="/pause" method="get" id="pause">
-    <input type="submit" value="Pause/Resume">
-  </form>
-</div>
+<script type="text/javascript">
+  function playPause() {
+    fetch('/pause')
+      .then((response) => {
+        return response.text()
+      })
+      .then((data) => {
+        if (data === "NOT PLAYING") {
+          // we have not yet started playback, so use the play endpoint
+          console.log('Playing media');
+          fetch('/play');
+        }
+      })
+  }
+</script>
