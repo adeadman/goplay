@@ -27,6 +27,9 @@ type PlaybackInfo struct {
 // 168.93 seconds with 6.53 seconds of playtime remaining.
 func getPlaybackInfoFromFrameLine(line string) (info *PlaybackInfo, err error) {
 	info = &PlaybackInfo{}
+	if line == "" {
+		return
+	}
 	frameInfoLine := strings.Split(line, " ")
 	// Start at position 1, as the first part is the `@F` prefix
 	info.Frame, err = strconv.ParseUint(frameInfoLine[1], 10, 16)
@@ -37,11 +40,11 @@ func getPlaybackInfoFromFrameLine(line string) (info *PlaybackInfo, err error) {
 	if err != nil {
 		return
 	}
-	info.Seconds, err = strconv.ParseFloat(frameInfoLine[3], 32)
+	info.Seconds, err = strconv.ParseFloat(frameInfoLine[3], 64)
 	if err != nil {
 		return
 	}
-	info.SecondsRemaining, err = strconv.ParseFloat(frameInfoLine[4], 32)
+	info.SecondsRemaining, err = strconv.ParseFloat(frameInfoLine[4], 64)
 	if err != nil {
 		return
 	}
